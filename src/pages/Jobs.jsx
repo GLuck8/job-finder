@@ -77,6 +77,32 @@ export default function Jobs({ onGenerated }) {
     setWanted((w) => (w.includes(kind) ? w.filter((x) => x !== kind) : [...w, kind]));
   }
 
+  // Phase 4 needs human judgements to measure prompt changes against, and they have to be
+  // Glenn's rather than the model's, or the evaluation only proves the model agrees with
+  // itself. Ticking a job to draft an application is a yes; hiding one is a no. Both are
+  // captured here, at the moment of the click, rather than inferred from the data later.
+  // The score at the time is stored with the label so agreement can be measured without
+  // re-running anything. Labelling never blocks the action it describes.
+  async function recordLabel(job, label, source) {
+    if (!job) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("eval_labels").upsert(
+        {
+          owner_id: user.id,
+          job_id: job.id,
+          label,
+          source,
+          total_score_at_label: job.total_score ?? null,
+          fit_score_at_label: job.fit_score ?? null,
+        },
+        { onConflict: "job_id,source" },
+      );
+    } catch {
+      /* ignored on purpose */
+    }
+  }
+
   async function createApplications() {
     setProgress({ done: 0, total: picked.length });
     setMessage(null);
@@ -89,6 +115,7 @@ export default function Jobs({ onGenerated }) {
         body: { job_id: id, documents: docs, pages: isVps ? 2 : 1 },
       });
       if (error) failed += 1;
+      else await recordLabel(job, "would_apply", "application_drafted");
       setProgress({ done: i + 1, total: picked.length });
     }
     setProgress(null);
@@ -117,6 +144,7 @@ export default function Jobs({ onGenerated }) {
 
   async function hide(job) {
     setRows((rs) => rs.filter((r) => r.id !== job.id));
+    await recordLabel(job, "would_not_apply", "hidden_by_hand");
     await supabase.from("jobs").update({ hidden: true }).eq("id", job.id);
   }
 
