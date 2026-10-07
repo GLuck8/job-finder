@@ -3,3 +3,9 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Each edge function is deployed with its own copy of the shared Claude helper, because
+# a deployed function bundle is flat and cannot import from a sibling directory. The copy
+# is made at deploy time from supabase/functions/_shared/llm.ts, which is the only version
+# kept in the repository, so there is one source of truth rather than six drifting ones.
+supabase/functions/*/llm.ts
