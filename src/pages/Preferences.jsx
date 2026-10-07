@@ -24,8 +24,42 @@ const RULE_DEFAULTS = {
   max_per_source: 10,
 };
 
-const list = (v) => (v ?? []).join(", ");
 const toList = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
+
+/**
+ * A comma separated text box that keeps what you typed.
+ *
+ * The first version of this showed value.join(", ") and parsed on every keystroke.
+ * Typing a comma produced a trailing empty item, which the filter dropped, which made
+ * the joined text identical to what was there before the comma, which erased the comma
+ * from the box. The same thing happened to the space after it. The effect was that no
+ * second word could ever be added.
+ *
+ * The fix is to treat the text and the list as two different things. The box shows the
+ * raw text, so a comma survives being typed and a half-typed word is left alone. The
+ * parsed list still goes up to the parent on every keystroke, so saving and the chips
+ * stay live. The text is only overwritten from above when the saved list genuinely
+ * differs from what is typed, which happens on first load and not while typing.
+ */
+function WordList({ value, onChange, className = "words" }) {
+  const [text, setText] = useState(() => (value ?? []).join(", "));
+  const saved = (value ?? []).join("|");
+
+  useEffect(() => {
+    if (toList(text).join("|") !== saved) setText((value ?? []).join(", "));
+  }, [saved]);
+
+  return (
+    <input
+      className={className}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(toList(e.target.value));
+      }}
+    />
+  );
+}
 
 export default function Preferences() {
   const [form, setForm] = useState(DEFAULTS);
@@ -96,8 +130,7 @@ export default function Preferences() {
       <div className="panel">
         <h3>What the app searches for</h3>
         <label className="field">Search terms
-          <input className="words" value={list(form.keywords)}
-            onChange={(e) => set("keywords", toList(e.target.value))} />
+          <WordList value={form.keywords} onChange={(v) => set("keywords", v)} />
           <span className="hint">
             Comma separated. These are the actual searches sent to Adzuna, LinkedIn and Careers.Vic, so they
             decide what gets found at all. The first six are used each sweep.
@@ -105,8 +138,7 @@ export default function Preferences() {
         </label>
 
         <label className="field">A job title must contain one of these
-          <input className="words" value={list(rules.title_include)}
-            onChange={(e) => setRule("title_include", toList(e.target.value))} />
+          <WordList value={rules.title_include} onChange={(v) => setRule("title_include", v)} />
           <span className="hint">
             Checked before anything is sent for scoring, so off-topic jobs cost nothing. Leave empty to score
             everything found.
@@ -119,8 +151,7 @@ export default function Preferences() {
         </label>
 
         <label className="field">And must not contain any of these
-          <input className="words" value={list(rules.title_exclude)}
-            onChange={(e) => setRule("title_exclude", toList(e.target.value))} />
+          <WordList value={rules.title_exclude} onChange={(v) => setRule("title_exclude", v)} />
           <span className="hint">Discarded first, before the list above is checked.</span>
           {(rules.title_exclude ?? []).length > 0 && (
             <span className="chips">
@@ -185,12 +216,12 @@ export default function Preferences() {
         </fieldset>
 
         <label className="field">Employers to ignore
-          <input value={list(form.excluded_employers)} onChange={(e) => set("excluded_employers", toList(e.target.value))} />
+          <WordList className="" value={form.excluded_employers} onChange={(v) => set("excluded_employers", v)} />
           <span className="hint">Anything from these scores zero on the preference half.</span>
         </label>
 
         <label className="field">Phrases that count against a job
-          <input value={list(form.red_flag_phrases)} onChange={(e) => set("red_flag_phrases", toList(e.target.value))} />
+          <WordList className="" value={form.red_flag_phrases} onChange={(v) => set("red_flag_phrases", v)} />
           <span className="hint">Each one found in an ad takes 10 points off the preference score.</span>
         </label>
 
